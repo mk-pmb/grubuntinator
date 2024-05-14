@@ -1,0 +1,7 @@
+
+# temporary files
+/*.log
+/tmp.*
+
+
+# unsorted stuff (keep this section empty)
