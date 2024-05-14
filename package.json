@@ -1,0 +1,26 @@
+{ "name": "grubuntinator",
+  "version": "0.0.0",
+  "description": "A GRUB config that auto-detects available Ubuntu kernels, helps unleash the full potential of casper, and also helps with booting other stuff in outlandish ways.",
+  "keywords": [
+    "grub",
+    "casper",
+    "ubuntu"
+  ],
+
+  "author": "M.K. (https://github.com/mk-pmb)",
+  "homepage": "https://github.com/mk-pmb/grubuntinator/#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mk-pmb/grubuntinator.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mk-pmb/grubuntinator/issues"
+  },
+  "contributors": [],
+
+  "private": true, "license": "GPL-3.0-or-later",
+
+
+
+  "engines": { "grub": ">=2" }
+}
