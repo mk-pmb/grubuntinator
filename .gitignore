@@ -1,7 +1,13 @@
 
-# temporary files
+# Host-specific files:
+/*.@*
+
+
+
+# Auto-generated files:
 /*.log
 /tmp.*
 
 
-# unsorted stuff (keep this section empty)
+
+# Unsorted stuff (this section should be empty):
