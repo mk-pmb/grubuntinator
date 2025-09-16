@@ -34,7 +34,12 @@ function diskmgr_cli_init () {
     [bay:fs_uuid]='f3102cb0-8a4b-4d7c-8649-af267709609d'
     [bay:fs_label]='' # empty = use pt_label
     [bay:size]='' # empty = use all remaining space
+
     )
+
+  DISKIMG[grubenv:hostname]="${DISKIMG[bay:pt_label]%%_*}"
+  DISKIMG[grubenv:liveiso_prtn]="${DISKIMG[bay:pt_label]}"
+
   diskmgr_detect_loopdev || return $?
 
   diskmgr_"$@" || return $?
@@ -154,13 +159,30 @@ function diskmgr_remake () {
   sudo mkfs.ext3 "${EXT_OPT[@]}" -U "${DISKIMG[bay:fs_uuid]}" \
     -L "${DISKIMG[bay:fs_label]:-${DISKIMG[bay:pt_label]}}" \
     -- "${DISKIMG[loop_dev]}p2"  || return $?
+
+  diskmgr_install_grub || return $?
+  diskmgr_configure_grub || return $?
+  diskmgr_postmake || return $?
+}
+
+
+function diskmgr_neuter_partition () {
+  sudo dd if=/dev/zero of="${DISKIMG[loop_dev]}p${1:-E_NO_PRTN_NUM}" \
+    bs=1024 count=1024 || return $?
+}
+
+
+function diskmgr_install_grub () {
   diskmgr_mount__mpnt_only || return $?
 
   sudo grub-install --skip-fs-probe --removable --no-nvram \
     --target="$(uname -m)"-efi --{boot,efi}-directory=tmp.esp/ \
     -- "${DISKIMG[loop_dev]}p1" || return $?
   echo
+}
 
+
+function diskmgr_configure_grub () {
   [ -n "$GRUB_CFGDIR" ] || local GRUB_CFGDIR='../..'
   GRUB_CFGDIR="${GRUB_CFGDIR%/}"
   echo D: "Gonna copy GRUB config files from: $GRUB_CFGDIR/"
@@ -175,13 +197,37 @@ function diskmgr_remake () {
     (( SXS += 1 ))
   done
   echo D: "Copied $SXS GRUB config files."
+
+  echo D: 'Writing grubenv file:'
+  diskmgr_gen_grubenv >tmp.esp/grub/grubenv || return $?
+
+  echo D: 'Done configuring GRUB.'
 }
 
 
-function diskmgr_neuter_partition () {
-  sudo dd if=/dev/zero of="${DISKIMG[loop_dev]}p${1:-E_NO_PRTN_NUM}" \
-    bs=1024 count=1024 || return $?
+function diskmgr_gen_grubenv () {
+  local KEY= VAL= GE_LEN=1024
+  ( echo '# GRUB Environment Block'
+    for KEY in "${!DISKIMG[@]}"; do
+      case "$KEY" in
+        grubenv:* )
+          VAL="${DISKIMG[$KEY]}"
+          echo "${KEY#*:}=$VAL"
+          ;;
+      esac
+    done | sort -V
+    yes | head --bytes="$GE_LEN" | tr -c '#' '#'
+  ) | head --bytes="$GE_LEN"
 }
+
+
+function diskmgr_postmake () {
+  diskmgr_mount__mpnt_only || return $?
+  sudo mkdir --parents -- tmp.bay/boot-isos || return $?
+  sudo chown --reference . --recursive -- tmp.bay/boot-isos || return $?
+}
+
+
 
 
 
