@@ -25,6 +25,8 @@ function diskmgr_cli_init () {
     [esp:size]='16M'
     [esp:mount_opt]=",dmask=0022,fmask=0133,$(stat --format=uid=%u,gid=%g .)"
 
+    [grub:real_main]='main.grub'
+
     [bay:guid]='dfa75d2b-c47e-4f4c-8a65-e03fed26735b'
     # [bay:type]='0700' # Microsoft basic data'
     [bay:type]='8300' # Linux filesystem
@@ -186,8 +188,10 @@ function diskmgr_configure_grub () {
   [ -n "$GRUB_CFGDIR" ] || local GRUB_CFGDIR='../..'
   GRUB_CFGDIR="${GRUB_CFGDIR%/}"
   echo D: "Gonna copy GRUB config files from: $GRUB_CFGDIR/"
+  echo 'configfile "$prefix/'"${DISKIMG[grub:real_main]}"'"' \
+    >tmp.esp/grub/grub.cfg || return $?
   local ORIG= SXS=0
-  for ORIG in "$GRUB_CFGDIR"/{grub.*,*.grub} ; do
+  for ORIG in "$GRUB_CFGDIR"/*.grub ; do
     [ -f "$ORIG" ] || continue
     case "ORIG" in
       *.@* ) continue;;
