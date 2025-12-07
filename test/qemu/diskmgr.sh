@@ -229,6 +229,10 @@ function diskmgr_postmake () {
   diskmgr_mount__mpnt_only || return $?
   sudo mkdir --parents -- tmp.bay/boot-isos || return $?
   sudo chown --reference . --recursive -- tmp.bay/boot-isos || return $?
+
+  local VAL='../../tmp.supergrub.repo/menus/sgd'
+  [ ! -d "$VAL" ] || cp --no-clobber --recursive \
+    --target-directory='tmp.esp/grub/' -- "$VAL" || return $?
 }
 
 
