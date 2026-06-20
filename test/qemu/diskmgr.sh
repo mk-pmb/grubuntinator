@@ -44,7 +44,8 @@ function diskmgr_cli_init () {
 
   diskmgr_detect_loopdev || return $?
 
-  diskmgr_"$@" || return $?
+  local ORIG_TASK="$1"; shift
+  diskmgr_"$ORIG_TASK" "$@" || return $?
 }
 
 
@@ -97,6 +98,16 @@ function diskmgr_mount__mpnt_only () {
 }
 
 
+function diskmgr_close () {
+  echo E: "Cannot '$ORIG_TASK'. Use 'umount__mpnt_only' or 'eject'." >&2
+  return 4
+}
+
+
+function diskmgr_umount () { diskmgr_close; }
+function diskmgr_unmount () { diskmgr_close; }
+
+
 function diskmgr_eject () {
   diskmgr_umount__mpnt_only || return $?
   sudo losetup --detach "${DISKIMG[loop_dev]}" || return $?$(
@@ -120,7 +131,7 @@ function diskmgr_read_prtntbl () {
 
 
 function diskmgr_remake () {
-  diskmgr_umount__mpnt_only || return $?
+  diskmgr_umount__eject || return $?
   truncate --size="${DISKIMG[size_mb]}"M -- "${DISKIMG[file]}" || return $?
 
   echo D: 'zap potential old partition table(s):'
