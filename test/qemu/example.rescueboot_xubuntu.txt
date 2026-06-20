@@ -1,0 +1,16 @@
+# -*- coding: utf-8, tab-width: 2 -*-
+# <example.rescueboot_xubuntu.txt perl -pe '$|=1;sleep 1' >tmp.sermon.in
+loopback -d loop
+clear
+insmod ext2
+insmod gzio
+insmod iso9660
+insmod loopback
+insmod xzio
+echo $grub_cpu $grub_platform $cmdpath
+set root=(hd0,gpt2)
+loopback loop ($root)/xubuntu.iso
+cat (loop)/.disk/info
+ls (loop)/boot/grub/ # to verify the ISO has UEFI support
+ls (loop)/casper/ # to verify filenames
+linux (loop)/casper/vmlinuz boot=casper iso-scan/filename=/xubuntu.iso ---

@@ -106,8 +106,10 @@ function qemuboot_cli_main () {
 
   [ -z "$QEMU_GUEST_NAME" ] || BOOT_CMD+=( -name "$GUEST_NAME" )
   [ -z "$QEMU_GUEST_UUID" ] || BOOT_CMD+=( -uuid "$GUEST_UUID" )
-  [ "$QEMU_SERIAL_TCP_PORT" == 0 ] || BOOT_CMD+=(
-    -serial tcp:localhost:"$QEMU_SERIAL_TCP_PORT",reconnect=5 )
+  if [ "$QEMU_SERIAL_TCP_PORT" != 0 ]; then
+    qemuboot_verify_sermon || return $?
+    BOOT_CMD+=( -serial tcp:localhost:"$QEMU_SERIAL_TCP_PORT",reconnect=5 )
+  fi
 
   echo D: "run: ${BOOT_CMD[*]}"
   "${BOOT_CMD[@]}" &
@@ -128,7 +130,7 @@ function qemuboot_cli_main () {
   local DESKTOP_WIDTH=0 DESKTOP_HEIGHT=0
   eval "$(wmctrl -d | sed -nre 's~^\S+\s+\* DG: ([0-9]+)x([0-9]+) .*$'$(
     )'~DESKTOP_WIDTH=\1 DESKTOP_HEIGHT=\2~p')"
-  wmctrl -iFr "$QEMU_WIN_ID" -b add,above
+  # wmctrl -iFr "$QEMU_WIN_ID" -b add,above
   VAL="${QEMU_WINPOS_X:--840}"
   [ "$VAL" -ge 0 ] || (( VAL += DESKTOP_WIDTH ))
   [ "$VAL" -ge 1 ] || VAL=0
@@ -138,6 +140,31 @@ function qemuboot_cli_main () {
     )' H: The default power-off shortcut is ctrl+alt+q.'
   # NB: QEMU will automatically show a window title hint about ctrl+alt+q
   #     when mouse grabbing activates.
+}
+
+
+function qemuboot_verify_sermon () {
+  local PROG="${QEMU_SERMON_PROGNAME:-netcat}"
+  [ "$PROG" != //ignore ] || return 0
+  local ARG0="${QEMU_SERMON_PROGARG0:-netcat}"
+  local RGX="$QEMU_SERMON_PID_PORT_RGX"
+  [ -n "$RGX" ] ||
+    RGX='s~^\S+\s+([0-9]+)\s+qemu-sermon +(-\S+ +)+<port>$~\1~p'
+  local PORT="$QEMU_SERIAL_TCP_PORT"
+  RGX="${RGX//'<port>'/$PORT}"
+  local FOUND="$(ps ho user,pid,args -C "$PROG" | sed -nre "$RGX")"
+  case "$FOUND" in
+    *$'\n'* )
+      FOUND="${FOUND//$'\n'/ }"
+      echo E: $FUNCNAME: "Found too many sermons! ($FOUND)" >&2
+      return 6;;
+    '' )
+      echo E: $FUNCNAME: "Found no sermon on port $PORT in process table!" >&2
+      return 4;;
+    [1-9]* ) return 0;;
+  esac
+  echo E: $FUNCNAME: "Unexpected output: '$FOUND'" >&2
+  return 8
 }
 
 
