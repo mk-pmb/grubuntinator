@@ -1,0 +1,9 @@
+*.bin -text
+*.gif -text
+*.ico -text
+*.iso -text
+*.jpeg -text
+*.png -text
+*.tar -text
+*.tgz -text
+*.zip -text
