@@ -2,7 +2,7 @@
 # -*- coding: utf-8, tab-width: 2 -*-
 
 
-function qemu_boot () {
+function qemuboot_cli_main () {
   export LANG{,UAGE}=en_US.UTF-8  # make error messages search engine-friendly
   local SELFPATH="$(readlink -m -- "$BASH_SOURCE"/..)"
   cd -- "$SELFPATH" || return $?
@@ -150,4 +150,4 @@ function qemu_boot () {
 
 
 
-qemu_boot "$@"; exit $?
+qemuboot_cli_main "$@"; exit $?
