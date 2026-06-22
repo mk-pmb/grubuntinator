@@ -102,8 +102,15 @@ function diskmgr_mount__mpnt_only () {
     [ "$HAVE" -ef "$MPNT" ] || return 4$(
       echo E: "Failed to resolve symlink: $MPNT" >&2)
     HAVE="$(mount | LANG=C grep -Fe " on $HAVE type ")"
-    [ "${HAVE%% on *}" == "$DISK" ] ||
-      sudo mount "$DISK" "$MPNT" -o "$MOPT" || return $?
+    if [ "${HAVE%% on *}" == "$DISK" ]; then
+      # already mounted
+      continue
+    fi
+    echo D: "fsck+mount $DISK ($SHORTNAME):"
+    sudo fsck -C -M "$DISK" || return $?$(
+      echo E: "Failed (rv=$?) to fsck $DISK ($SHORTNAME)" >&2)
+    sudo mount "$DISK" "$MPNT" -o "$MOPT" || return $?$(
+      echo E: "Failed (rv=$?) to mount $DISK ($SHORTNAME)" >&2)
   done
   [ -z "${TODO// /}" ] || return 4$(
     echo E: "Unknown disk short names:${TODO% }" >&2)
