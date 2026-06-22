@@ -66,8 +66,9 @@ function diskmgr_detect_loopdev () {
 
 
 function diskmgr_mount () {
+  # args: Partition short names for mpnt_only.
   diskmgr_mount__disk_only || return $?
-  diskmgr_mount__mpnt_only || return $?
+  diskmgr_mount__mpnt_only "$@" || return $?
 }
 
 
@@ -81,9 +82,16 @@ function diskmgr_mount__disk_only () {
 
 
 function diskmgr_mount__mpnt_only () {
-  local SHORTNAME= DISK= NUM=0 MPNT= MOPT= HAVE=
-  for SHORTNAME in ${DISKIMG[prtn_shortnames]} ; do
+  # args: Partition short names, default: all partitions.
+  local VAL= DISK= NUM=0 MPNT= MOPT= HAVE=
+  local SHORTNAME="${DISKIMG[prtn_shortnames]}"
+  local TODO=" $* "
+  [ "$#" -ge 1 ] || TODO=" $SHORTNAME "
+  for SHORTNAME in $SHORTNAME; do
     (( NUM += 1 ))
+    VAL="${TODO// $SHORTNAME / }"
+    [ "$VAL" != "$TODO" ] || continue
+    TODO="$VAL"
     DISK="${DISKIMG[loop_dev]}p$NUM"
     MPNT="tmp.$SHORTNAME"
     mkdir --parents -- "$MPNT" || return $?
@@ -95,6 +103,8 @@ function diskmgr_mount__mpnt_only () {
     [ "${HAVE%% on *}" == "$DISK" ] ||
       sudo mount "$DISK" "$MPNT" -o "$MOPT" || return $?
   done
+  [ -z "${TODO// /}" ] || return 4$(
+    echo E: "Unknown disk short names:${TODO% }" >&2)
 }
 
 
