@@ -8,6 +8,7 @@ function diskmgr_cli_init () {
   cd -- "$SELFPATH" || return $?
 
   local ADM_GROUP_GID="$(grep -e '^adm:' -- /etc/group | cut -d : -f 3)"
+  local QEMU_HOSTNAME='qemutest'
   local -A DISKIMG=(
     [file]='tmp.disk.img'
     [size_mb]=2048
@@ -19,7 +20,7 @@ function diskmgr_cli_init () {
 
     [esp:guid]='e9f40dc2-67a5-4c4b-bf12-5c8caf171ce5'
     [esp:type]='EF00' # EFI system partition
-    [esp:pt_label]='qemutest_esp'
+    [esp:pt_label]="$QEMU_HOSTNAME"_esp
     [esp:fat_volume_id]="$(diskmgr_hexencode 'GRUB')"
     [esp:fat_volume_name]='qemu_grub'
     [esp:size]='16M'
@@ -30,7 +31,7 @@ function diskmgr_cli_init () {
     [bay:guid]='dfa75d2b-c47e-4f4c-8a65-e03fed26735b'
     # [bay:type]='0700' # Microsoft basic data'
     [bay:type]='8300' # Linux filesystem
-    [bay:pt_label]='qemutest_isobay'
+    [bay:pt_label]="$QEMU_HOSTNAME"_isobay
     # [bay:fat_volume_id]="$(diskmgr_hexencode 'ISOS')"
     # [bay:fat_volume_name]='QEMU_ISOBAY'
     [bay:fs_uuid]='f3102cb0-8a4b-4d7c-8649-af267709609d'
@@ -39,7 +40,8 @@ function diskmgr_cli_init () {
 
     )
 
-  DISKIMG[grubenv:hostname]="${DISKIMG[bay:pt_label]%%_*}"
+  DISKIMG[grubenv:esp_prtn_label]="${DISKIMG[esp:fat_volume_name]}"
+  DISKIMG[grubenv:hostname]="$QEMU_HOSTNAME"
   DISKIMG[grubenv:liveiso_prtn]="${DISKIMG[bay:pt_label]}"
 
   diskmgr_detect_loopdev || return $?
