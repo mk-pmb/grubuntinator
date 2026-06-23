@@ -1,0 +1,56 @@
+# -*- coding: utf-8, tab-width: 2 -*-
+
+echo
+echo -n D: "GRUB: Disable regexp glob mode: "
+rmmod regexp
+
+set cfgd="$prefix/grubu"
+export cfgd
+source "$prefix"/grubu/lib_grubu_core.grub
+exset grub_appname 'Grubuntinator'
+
+loadfont "$prefix/fonts/unicode.pf2"
+load_env
+set timeout_style='menu' # Don't show "Press any key to continue…"
+exset safemode 0
+exset sgdsearch on
+set default="$previously_chosen"
+
+if [ -n "$hostname_override_once" ]; then
+  set hostname="$hostname_override_once"
+  unset hostname_override_once
+fi
+if [ -z "$hostname" ]; then
+  exset safemode 1
+  set timeout=-1
+  set default=set_hostname
+fi
+export hostname
+
+echo
+source "$cfgd/logo.grub"
+echo
+wait +
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# np2

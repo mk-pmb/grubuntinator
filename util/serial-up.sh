@@ -1,5 +1,7 @@
 #!/bin/bash
 # -*- coding: utf-8, tab-width: 2 -*-
+REPO_DIR="$(readlink -m -- "$BASH_SOURCE"/../..)"
+cd -- "$REPO_DIR" || exit $?
 [ -n "$*" ] || exit 4$(
   echo E: "No filenames given! Use '.' for default files." >&2)
 if [ "$1" == . ]; then
@@ -7,4 +9,4 @@ if [ "$1" == . ]; then
   set -- $(ls -1 -- *.grub | grep -vFe .@) "$@"
 fi
 UPLOADER='serialport-upload-to-busybox-initrd' # from net-util-pmb
-exec $UPLOADER --into //ESP//grub/ "$@"; exit $?
+exec $UPLOADER --into //ESP//grub/grubu/ "$@"; exit $?

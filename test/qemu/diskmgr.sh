@@ -26,7 +26,7 @@ function diskmgr_cli_init () {
     [esp:size]='16M'
     [esp:mount_opt]=",dmask=0022,fmask=0133,$(stat --format=uid=%u,gid=%g .)"
 
-    [grub:real_main]='main.grub'
+    [grub:real_main]='grubu/main.grub'
 
     [bay:guid]='dfa75d2b-c47e-4f4c-8a65-e03fed26735b'
     # [bay:type]='0700' # Microsoft basic data'

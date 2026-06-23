@@ -1,0 +1,46 @@
+# -*- coding: utf-8, tab-width: 2 -*-
+
+function vtest { test "$@"; echo "[ $* ]: $?"; }
+function vdo { echo D: "cmd: $*"; "$@"; }
+function qsource { if [ -f "$1" ]; then source "$@"; fi; }
+function scoped_eval { eval "shift; $1"; }
+
+
+function wait {
+  if [ -z "$1" ]; then
+    echo "W: wait: No timespan given. Use '+' for default!"
+    # b/c with no args, args may be inherited, especially in menu entries.
+    setparams +
+  fi
+  if [ "$#" -ge 2 ]; then scoped_eval 'shift; echo "$*"' "$@"; fi
+  if [ "$1" == + ]; then shift; setparams 9009009; fi
+  echo "... press ESC (or maybe shift) to continue (or wait $1 seconds) ..."
+  sleep --interruptible "$1"
+}
+
+
+function exset {
+  while [ -n "$1" ]; do
+    set "$1=$2"
+    export "$1"
+    shift ; shift # because "shift 2" might fail if too few args.
+  done
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+echo -n '' # Mute linter hint "contains no commands and will do nothing"
+# np2
