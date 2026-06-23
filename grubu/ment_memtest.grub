@@ -1,0 +1,25 @@
+# -*- coding: utf-8, tab-width: 2 -*-
+
+if [ -f "$cfgd/${grub_cpu}-memtest/mt86p_800_${grub_cpu}" ]; then
+  eval 'menuentry "Memtest86+ (edit for details)" {
+    set memtest='"'$cfgd/${grub_cpu}-memtest/mt86p_800_${grub_cpu}'"'
+
+    # use built-in support for USB keyboards:
+    linux "$memtest" keyboard=both
+
+    # or: use BIOS legacy emulation for USB keyboards:
+    # linux "$memtest" keyboard=legacy
+
+    # or: disable SMP and memory identification:
+    # linux "$memtest" nosmp nosm nobench
+  }'
+fi
+
+
+
+
+
+
+
+
+# np2

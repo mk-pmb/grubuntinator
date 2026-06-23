@@ -1,0 +1,215 @@
+# -*- coding: utf-8, tab-width: 2 -*-
+
+
+function detect_ubuntu_kernels__scan {
+  set ment_hotkey='u'
+  for scan_host in $hostname $extra_hostnames ; do
+    detect_ubuntu_kernels__scan_one_host "$@"
+  done
+}
+
+
+function detect_ubuntu_kernels__scan_one_host {
+  if [ "$safemode" != 0 ]; then
+    eval "$ment_add 'skip detect_ubuntu_kernels__scan: 0 != safemode = [$safemode]' { return 0; }"
+    return 3
+  fi
+
+  echo
+  if [ -z "$scan_host" ]; then set scan_host="$hostname"; fi
+  echo -n D: "Detecting Ubuntu kernels on host $scan_host: "
+  tr --set=UC_BOOT_HOST --upcase "$hostname"
+  tr --set=UC_SCAN_HOST --upcase "$scan_host"
+  set esp_label="$esp_prtn_label"
+  set_if_empty esp_label "${UC_SCAN_HOST}_ESP"
+
+  echo -n D: "Search for partition '$esp_label': "
+  prtn_by_label esp_prtn "$esp_label"
+  if [ -n "$esp_prtn" ]; then
+    echo "found $esp_prtn."
+  else
+    echo 'not found.'
+    set esp_prtn 'error/cannot/find/ESP'
+  fi
+
+  set ubuntu_prtn="/dev/disk/by-label/${scan_host}_ubuntu"
+  # ^-- NB: not …/by-partlabel/…: LUKS disks usually don't have that.
+
+  detect_ubuntu_kernels__bonus_detect_efi_windows
+
+  if [ -z "$kernels_prtn" ]; then
+    eval "$ment_add 'E: Cannot find the kernels partition $kernels_ptlabel' { return 0; }"
+  else
+    detect_ubuntu_kernels__scan_one_partition '' "$@"
+    if [ -z "$ment_id" ]; then
+      eval "$ment_add 'E: no kernels found in $kernels_path = $kernels_ptlabel' { return 0; }"
+    fi
+  fi
+  unset ment_id
+
+  detect_ubuntu_kernels__scan_one_partition "$esp_prtn" "$@"
+  unset ment_id
+  unset ment_hotkey
+  unset esp_label
+}
+
+
+function detect_ubuntu_kernels__scan_one_partition {
+  set kernels_prtn="$1"; shift
+  if [ -z "$kernels_prtn" ]; then
+    echo -n "search kernels partition... "
+    set kernels_prtn="$custom_kernels_prtn"
+    prtn_by_label kernels_prtn "$scan_host"_kernels
+    prtn_by_label kernels_prtn "$scan_host"_boot
+    echo "kernels partition: '$kernels_prtn'"
+  fi
+
+  set kernels_ptlabel=
+  label_by_prtn kernels_ptlabel "$kernels_prtn"
+  set_if_empty kernels_ptlabel '?no_label?'
+  echo "kernels partition label: '$kernels_ptlabel'"
+
+  set kernels_path="($kernels_prtn)"
+  set all_kernels=
+  set kernel_bfn='vmlinuz-'
+  echo "Scanning kernels: $kernels_path/$kernel_bfn*"
+  insmod regexp
+  for kernel_ver in "$kernels_path/$kernel_bfn"*; do
+    # While module regexp is active, do nothing but collect!
+    set all_kernels="$kernel_ver $all_kernels"
+  done
+  rmmod regexp
+  echo "Found kernel candidates: [$all_kernels]"
+
+  set ment_id=
+  for kernel_ver in $all_kernels ; do
+    if ! [ -f "$kernel_ver" ]; then
+      echo D: "not a regular file: '$kernel_ver'"
+      continue
+    fi
+    if ! rgx_ne kernel_ver 1 "/$kernel_bfn"'([0-9][^/]*)$' "$kernel_ver"; then
+      echo D: "cannot find a version string in '$kernel_ver'."
+      continue
+    fi
+    echo D: "Found kernel: version '$kernel_ver'"
+    "$@"
+  done
+
+  unset all_kernels
+  unset kernel_bfn
+  unset kernels_path
+  unset kernels_prtn
+  unset kernels_ptlabel
+}
+
+
+function detect_ubuntu_kernels__make_menu {
+  menuentry_autodetected_kernel__add_ment
+
+  set ment_vari="console"
+  set ment_kopt="systemd.unit=multi-user.target"
+  menuentry_autodetected_kernel__add_ment
+
+  set ment_vari="quickfail"
+  accum ment_kopt "systemd.unit=multi-user.target"
+  accum " noacpi"
+  accum " noapic"
+  accum " systemd.mask=systemd-logind.service"
+  # accum " systemd.mask=accounts-daemon.service"
+  accum " systemd.mask=avahi-daemon.service"
+  accum " systemd.mask=gpu-manager.service"
+  # accum " systemd.mask=lightdm.service"
+  accum " systemd.mask=ModemManager.service"
+  accum " systemd.mask=NetworkManager.service"
+  accum " systemd.mask=NetworkManager-wait-online"
+  accum " systemd.mask=tor.service"
+  accum =
+  menuentry_autodetected_kernel__add_ment
+
+  unset ment_vari; unset ment_kopt
+}
+
+
+function menuentry_autodetected_kernel__add_ment {
+  set ment_id="autodetected-${kernel_bfn}${kernel_ver}@${scan_host}/${kernels_ptlabel}"
+  set ment_title="Kernel $kernel_ver @ $kernels_ptlabel"
+  if [ -n "$ment_vari" ]; then
+    set ment_id="$ment_id:$ment_vari"
+    set ment_title="   `-- $ment_vari"
+  fi
+  set kernel_opt=
+  determine_kernel_opt
+  repeatable_menuentry "" "
+    linux '$kernels_path/${kernel_bfn}${kernel_ver}' root='$ubuntu_prtn' ro -- $kernel_opt $ment_kopt
+    initrd '$kernels_path/initrd.img-$kernel_ver'
+    echo 'Now booting: $ment_title'
+    boot
+    wait +
+    "
+}
+
+
+function detect_ubuntu_kernels__bonus_efi_generic {
+  set efi_file="$1"; shift
+  set ment_title="$1"; shift
+  if [ -z "$ment_title" ]; then set ment_title="$efi_file"; fi
+  set ment_title="Bonus EFI: $ment_title @ $esp_label"
+  set ment_id="bonus-efi@${scan_host}:$efi_file"
+
+  set efi_file="($esp_prtn)/$efi_file"
+  if ! [ -f "$efi_file" ]; then return 0; fi
+
+  set quot='"'
+  set apos="'"
+  repeatable_menuentry "" "
+    set efi_file='$efi_file'
+    echo ${quot}Now booting EFI file $apos\$efi_file$apos from the ESP (\$esp_label).${quot}
+    chainloader $quot\$efi_file$quot
+    # wait +
+    "
+}
+
+
+function detect_ubuntu_kernels__bonus_detect_efi_windows {
+  echo D: "[Ubuntu detector] Bonus: Detect potential MS Windows EFI launcher"
+  set ment_hotkey='w'
+  detect_ubuntu_kernels__bonus_efi_generic \
+    'EFI/Microsoft/Boot/bootmgfw.efi' \
+    'Windows'
+  unset ment_hotkey
+  detect_ubuntu_kernels__bonus_efi_generic \
+    'efi/microsoft/boot/cdboot.efi' \
+    'Windows 10 RE (or similar) Setup'
+  detect_ubuntu_kernels__bonus_efi_generic \
+    'efi/microsoft/boot/memtest.efi' \
+    'Windows 10 RE (or similar) Memory Test'
+  detect_ubuntu_kernels__bonus_efi_generic bootmgr.efi
+}
+
+
+menuentry "==---== Auto-detected Ubuntu kernels ==---==" {
+  set esp_prtn=
+  set kernels_prtn=
+  set kernels_path=
+  set ment_add='wait + M:'
+  detect_ubuntu_kernels__scan detect_ubuntu_kernels__make_menu
+  wait + 'M: (end)'
+}
+
+set ment_add='menuentry'
+detect_ubuntu_kernels__scan detect_ubuntu_kernels__make_menu
+
+
+
+
+
+
+
+
+
+
+
+unset ment_title
+unset ment_add
+unset ment_id
+ment_noop ''

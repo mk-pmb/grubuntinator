@@ -1,0 +1,289 @@
+# -*- coding: utf-8, tab-width: 2 -*-
+
+
+function detect_live_isos__makemenu {
+  if [ -z "$liveiso_prtn" ]; then return 0; fi
+
+  echo
+  echo -n D: "Searching ISO file partition labeled '$liveiso_prtn'... "
+  prtn_by_label isoprtn "$liveiso_prtn"
+  echo "found '$isoprtn'"
+  echo "Scanning ISOs:"
+  set all_isos=
+  detect_live_isos__scan_dir boot-isos
+  detect_live_isos__scan_dir bootisos
+  echo "Found ISO file(s): [$all_isos]"
+
+  eval "menuentry '==---== Auto-detected Ubuntu Live ISOs ==---==' {
+    # liveiso_prtn='$liveiso_prtn' -> isoprtn='$isoprtn'
+    # all_isos='$all_isos'
+    return 0
+    }"
+
+  set ment_hotkey='l'
+  set ment_add='submenu'
+  set invo="vtry detect_live_isos__suggest_invocation '$isoprtn'"
+  if [ -n "$liveiso_file" ]; then
+    set ment_id='live_iso:'
+    set ment_title='(from GRUB config) $liveiso_file'
+    if ! [ -f "($isoprtn)/$liveiso_file" ]; then
+      # Warn only, so user can easily edit an almost-correct ISO path.
+      ment_noop "!! W: not a file: '($isoprtn)/$liveiso_file' !!"
+    fi
+    repeatable_menuentry "" "$invo '$liveiso_file'"
+  fi
+
+  set ment_id=
+  # ^-- Clear so we can use to see if we were able to generate any menu entry
+  #     for any detected ISO.
+  set ment_hotkey='i'
+  for isofile in $all_isos ; do
+    if ! [ -f "$isofile" ]; then
+      echo D: "not a regular file: '$isofile'"
+      continue
+    fi
+    rgx_or ment_title 1 '^\([a-z0-9,]*\)\/(.*)$' "$isofile" ''
+    if [ -n "$ment_title" ]; then
+      set isofile="$ment_title"
+      set ment_id="live_iso:$isofile"
+      repeatable_menuentry "" "$invo '$isofile'"
+    else
+      ment_noop "Failed to decode: $isofile"
+    fi
+  done
+  unset ment_hotkey
+  if [ -z "$ment_id" ]; then
+    ment_noop "Found no ISOs on '$liveiso_prtn' ($isoprtn)."
+  fi
+
+  unset all_isos
+  unset ment_title
+  unset invo
+  unset isofile
+  unset isoprtn
+  unset ment_id
+
+  ment_noop ''
+}
+
+
+function detect_live_isos__suggest_invocation {
+  echo D: "detect_live_isos__suggest_invocation: [$*]"
+  set isoprtn="$1"
+  set isofile="$2"
+  set loopdevname='isoloop'
+
+  set qd='echo "D:'
+  set qnd='echo -n "D:'
+  set quot='"'
+
+  set debug_loopdev="
+    $qd Delete possibly left-over loop device '$loopdevname':$quot
+    loopback -d $loopdevname
+    $qd Mount loop device '$loopdevname' <- '(\$isoprtn)/\$isofile':$quot
+    loopback $loopdevname $quot(\$isoprtn)/\$isofile$quot
+    echo
+
+    $qnd Read '($loopdevname)/.disk/info': $quot
+    cat ($loopdevname)/.disk/info
+    echo
+
+    $qnd Files in '($loopdevname)/boot/grub/': $quot
+    ls -- $quot($loopdevname)/boot/grub/$quot
+    echo
+
+    $qnd Files in '($loopdevname)/casper/': $quot
+    ls -- $quot($loopdevname)/casper/$quot
+    echo"
+  eval "$debug_loopdev"
+
+  set file='
+    /casper/loopback.cfg
+    /boot/grub/loopback.cfg
+    /grub/loopback.cfg
+    '
+  for file in $file ''; do
+    if [ -f "($loopdevname)$file" ]; then break; fi
+  done
+  if [ -n "$file" ]; then
+    eval "menuentry 'Use ($loopdevname)$file [l]' --hotkey=l {
+      set root='($loopdevname)'
+      configfile '$file'
+    }"
+  fi
+
+  rgx_or isodir 1 '^(.*)/' "$isofile" ''
+  rgx_or isobfn 1 '([^/]+)\.iso$' "$isofile" "$isofile"
+  # echo D: "isodir='$isodir' isobfn='$isobfn'"
+
+  # Find initrd candidates
+  # https://www.gnu.org/software/grub/manual/grub/html_node/initrd.html
+  set accum='# Auto-detected initrd candidates:'
+  set spec="
+    ($loopdevname)/casper/initrd
+    (\$isoprtn)/\$isodir/all-isos/initrd
+    (\$isoprtn)/\$isodir/\$isobfn/initrd
+    "
+  for spec in $spec ; do
+    for spec in "$spec".img "$spec" "$spec".gz; do
+      eval "set file=$quot$spec$quot"
+      if [ -f "$file" ]; then break; fi
+    done
+    set accum="$accum
+      "
+    if ! [ -f "$file" ]; then set accum="$accum# "; fi
+    set accum="${accum}accum $quot$spec$quot"
+  done
+  set initrd_list="$accum"
+  unset accum
+  unset file
+  unset spec
+
+  set vtry_hint='do we have enough RAM?'
+  if [ "$hostname" == qemutest ]; then
+    set ram_hint="$ram_hint Consider QEMU_RAM_LIMIT_MB=2048 or more."
+  fi
+
+  set ment_cmd='Ubuntu-style casper (edit for options)'
+  set ment_cmd="menuentry '$ment_cmd [b]' --hotkey=b {
+    set isoprtn='$isoprtn'
+    set root=$quot\$isoprtn$quot
+    # ^-- root is a magic var where device names become device objects.
+    #     When converted back to string, it will lose its outer parens.
+
+    set isofile='$isofile'
+    set isodir='$isodir'
+    set isobfn='$isobfn'
+    set liveiso_lang='$liveiso_lang'
+    set liveiso_kbd='$liveiso_kbd'
+    set livedev=$quot/dev/disk/by-label/\$liveiso_prtn$quot
+    set casper_sn=$quot/\$isodir/\$isobfn/casper-sn.img$quot
+    if [ -f $quot(\$liveiso_prtn)\$casper_sn$quot ]; then
+      set casper_sn=$quot casper-sn=\$livedev:\$casper_sn$quot
+    else
+      set casper_sn=
+    fi
+    "
+  # echo "$ment_cmd"; wait +
+  set ment_cmd="$ment_cmd
+    set kernel_file=$quot($loopdevname)/casper/vmlinuz$quot
+    accum initrd_files
+      $initrd_list
+      accum $quot $liveiso_initrd$quot
+      # ^-- from the (potentially empty) \$liveiso_initrd option
+    accum =
+
+    accum kernel_opt
+      # accum $quot noacpi noapic nomodeset$quot
+      # accum $quot break=init$quot
+      # accum $quot rdinit=/bin/sh$quot
+      # accum $quot init=/bin/bash$quot
+      # accum $quot systemd.unit=multi-user.target$quot
+      # accum $quot textonly$quot
+      accum $quot irdex_host=${hostname} irdex_disks=WAIT:ESP:$quot
+
+      accum $quot boot=casper$quot
+      # accum $quot root=/dev/disk/by-partlabel/${hostname}_kernels$quot
+      accum $quot hostname=$hostname$quot
+      accum $quot ip=$liveiso_ip$quot
+      # accum $quot ip=interface,129.168.42.100,24,129.168.42.1$quot
+      accum $quot $liveiso_kopt$quot
+      # accum $quot persistent$quot
+
+      # Names of keyboard boot options in various live ISOs:
+      # https://github.com/OSInside/kiwi/issues/751
+      # Ubuntu:
+      accum $quot console-setup/layoutcode=\$liveiso_kbd$quot
+      accum $quot locale=\$liveiso_lang$quot
+      # Debian:
+      accum $quot live-config.keyboard-layouts=\$liveiso_kbd$quot
+      accum $quot live-config.locales=\$liveiso_lang$quot
+      # Mageia
+      accum $quot lang=\$liveiso_lang$quot
+      # Fedora/CentOS
+      accum $quot vconsole.keymap=\$liveiso_kbd$quot
+      accum $quot locale.LANG=\$liveiso_lang$quot
+      # openSUSE
+      accum $quot keytable=\$liveiso_kbd$quot
+      accum $quot lang=\$liveiso_lang$quot
+
+      accum $quot iso-scan/filename=/\$isofile$quot
+      accum $quot cdrom-detect/try-usb=true$quot
+      accum $quot file=/cdrom/preseed/ubuntu.seed$quot
+      accum $quot$casper_sn$quot
+      # accum $quot live-media=\$livedev$quot
+      # accum $quot live-media-path=/casper$quot
+      accum $quot ignore_uuid$quot
+      accum $quot fsck.mode=skip$quot # skip file checksum verification
+      accum $quot noprompt$quot # shutdown without asking to eject the cdrom.
+
+      # accum $quot console=ttyS0,115200n8$quot
+      # accum $quot earlyprintk=ttyS0,115200$quot
+
+    accum =$debug_loopdev
+
+    set vtry_hint='; $ram_hint'
+    set vtry_name=1
+    $qd Kernel options:\$kernel_opt$quot
+    echo
+    $qd Prepare kernel '\$kernel_file' with the options above: (…wait…)$quot
+    vtry linux \$kernel_file \$kernel_opt
+    echo
+    $qd initrd file(s) to use: \$initrd_files$quot
+    echo
+    $qd Prepare the above initrd file(s):$quot
+    vtry initrd \$initrd_files
+    unset vtry_hint
+    unset vtry_name
+    echo
+    $qd Gonna boot \$isofile now! On slow disks,"
+  set ment_cmd="$ment_cmd this may take a minute or two.$quot
+    vtry boot
+    }"
+  unset initrd_accums
+  # echo "$ment_cmd"; wait +
+  eval "$ment_cmd"
+  echo D: "menuentry rv=$? for $isofile on $isoprtn"
+  unset ment_cmd
+  # wait +
+
+  # Set timeout explicitly, so GRUB will wait again even if the submenu
+  # was auto-selected by count-down:
+  set default=0
+  set timeout=5
+
+  echo
+  echo
+  echo
+  echo
+  echo D: 'Unfortunately I found no way to disable the upcoming safety delay:'
+}
+
+
+function detect_live_isos__scan_dir {
+  echo D: "detect_live_isos__scan_dir: [$*]"
+  set iso_dir="$1"
+  insmod regexp
+  for isofile in "($isoprtn)/$iso_dir/"*.iso; do
+    # While module regexp is active, do nothing but collect!
+    echo D: "Found ISO: '$isofile'"
+    set all_isos="$all_isos $isofile"
+  done
+  rmmod regexp
+  # tr --set=iso_dir --upcase "$iso_dir"
+  # if [ "$iso_dir" != "$1" ]; then detect_live_isos__scan_dir "$iso_dir"; fi
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+detect_live_isos__makemenu

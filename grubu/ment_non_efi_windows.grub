@@ -1,0 +1,42 @@
+# -*- coding: utf-8, tab-width: 2 -*-
+
+
+function ment_non_efi_windows {
+  if [ -z "$non_efi_windows_fslabel" ]; then return 0; fi
+
+  set title_base="Non-EFI Windows @ $non_efi_windows_fslabel"
+  # ment_noop "==---== $title_base ==---=="
+  set win_sys_prtn=
+  prtn_by_label win_sys_prtn "$non_efi_windows_fslabel"
+  if [ -z "$win_sys_prtn" ]; then
+    # ment_noop "W: Partition not found!"
+    set title_base="W: Partition not found! -> $title_base"
+  fi
+
+  set ment_id_base="non-efi-windows@${hostname}/${non_efi_windows_fslabel}"
+  set ment_id="${ment_id_base}/chain"
+  set ment_title="$title_base (chainloader)"
+  repeatable_menuentry '' "
+    drivemap -s (hd0) ($win_sys_prtn)
+    echo 'Now booting (chainloader): Non-EFI Windows from $win_sys_prtn'
+    chainloader +1
+    boot
+    "
+
+  set ment_id="${ment_id_base}/ntldr"
+  set ment_title="$title_base (ntldr)"
+  repeatable_menuentry '' "
+    echo 'Now booting (ntldr): Non-EFI Windows from $win_sys_prtn'
+    ntldr ($win_sys_prtn)/bootmgr
+    boot
+    "
+
+  ment_noop ''
+  unset ment_title
+  unset title_base
+  unset ment_id
+  unset ment_id_base
+}
+
+
+ment_non_efi_windows

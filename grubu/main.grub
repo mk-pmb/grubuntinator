@@ -14,7 +14,7 @@ load_env
 set timeout_style='menu' # Don't show "Press any key to continue…"
 exset safemode 0
 exset sgdsearch on
-set default="$previously_chosen"
+set default="$prevboot"
 
 if [ -n "$hostname_override_once" ]; then
   set hostname="$hostname_override_once"
@@ -30,8 +30,87 @@ export hostname
 echo
 source "$cfgd/logo.grub"
 echo
-wait +
 
+insmod all_video
+insmod gfxterm
+insmod efi_gop
+insmod efi_uga
+insmod gzio
+insmod part_msdos   # probably redundant
+insmod part_gpt
+insmod ext2         # probably redundant
+insmod fat
+insmod ntfs
+# insmod ntldr        # missing in x86_64-efi?
+insmod linux
+
+
+source "$cfgd/fx_clear_vendor_logo.grub"
+
+
+if [ -n "$diskwait" ]; then
+  echo "Waiting $diskwait seconds for slow disks."
+  wait "$diskwait"
+fi
+
+set root_label='?no_label?'
+label_by_prtn root_label "$root"
+export root_label
+echo "D: Booting from partition $root = '$root_label'."
+
+qsource "$cfgd/cfg.early_defaults.grub"
+qsource "$cfgd/cfg.@$hostname.early.grub"
+qsource "$cfgd/cfg.@local.early.grub"
+qsource "$cfgd/cfg.@$hostname.grub"
+qsource "$cfgd/cfg.@local.grub"
+qsource "$cfgd/cfg.late_defaults.grub"
+qsource "$cfgd/cfg.@$hostname.late.grub"
+qsource "$cfgd/cfg.@local.late.grub"
+
+qsource "$cfgd/ment_non_efi_windows.grub"
+source "$cfgd/detect_ubuntu_kernels.grub"
+qsource "$cfgd/cfg.@$hostname.below_ubuntus.grub"
+qsource "$cfgd/cfg.@local.below_ubuntus.grub"
+
+ment_cfg_ifexist "Boot other EFI image" "$cfgd/detect_efi_images.grub"
+ment_cfg_ifexist "Ubuntu's GRUB config" "$cfgd/ubuntus.@$hostname.grub"
+ment_cfg_ifexist "Ubuntu's GRUB config" "$cfgd/ubuntus.@local.grub"
+source "$cfgd/ment_memtest.grub"
+
+if [ -f "$prefix"/sgd/main.cfg ]; then
+  set ment_id='sgd'
+  set ment_hotkey='s'
+  set ment_title='SuperGrub Disk'
+  repeatable_menuentry '' "configfile '$prefix'/sgd/main.cfg"
+fi
+
+ment_noop ''
+source "$cfgd/detect_live_isos.grub"
+
+ment_noop "==---== $grub_appname from ($root) = '$root_label' ==---=="
+menuentry 'Configuration: (Edit GRUB entries to modify their values.)' {
+  ls $prefix/grubenv; cat $prefix/grubenv; wait 30; }
+permacfg_menuentry hostname
+permacfg_menuentry hostname_override_once
+permacfg_menuentry again_timeout
+permacfg_menuentry liveiso_prtn
+permacfg_menuentry liveiso_file
+permacfg_menuentry liveiso_ip
+permacfg_menuentry liveiso_kopt
+
+set ment_id='forget'
+set ment_hotkey='0'
+set ment_title='Forget which menu item was chosen previously'
+repeatable_menuentry '' ''
+ment_noop ''
+
+source "$cfgd/detect_experimental_menus.grub"
+
+
+if [ "$grub_platform" == emu ]; then
+  ment_noop "## Disable timeout in emu, was '$timeout' ##"
+  set timeout=-1
+fi
 
 
 

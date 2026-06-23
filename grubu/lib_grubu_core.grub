@@ -28,6 +28,162 @@ function exset {
 }
 
 
+function permaset {
+  # args: key1 val1 key2 val2 …
+  while [ -n "$1" ]; do
+    set "$1=$2"
+    save_env "$1"
+    export "$1"
+    shift ; shift # because "shift 2" might fail if too few args.
+  done
+}
+
+
+function accum {
+  if [ "$*" == '=' ]; then
+    set "$accum_tmp"
+    unset accum_tmp
+    return 0
+  fi
+  if [ -z "$accum_tmp" ]; then
+    set accum_tmp="$1="
+    shift
+  fi
+  set accum_tmp="${accum_tmp}$*"
+}
+
+
+function permacfg_menuentry {
+  eval 'set permacfg_oldval="$'"$1"'"'
+  eval "menuentry \"  $1 = '$permacfg_oldval'\" --id=permacfg:$1 {
+    set $1='$permacfg_oldval'
+    export $1
+    # unset $1
+    save_env $1
+    normal
+  }"
+  unset permacfg_oldval
+}
+
+
+function rgx_ne {
+  # regexp not empty
+  # args: dest_var match_group regexp input
+  unset "$1"
+  insmod regexp
+  if ! regexp --set "$2:$1" "$3" "$4"; then
+    unset "$1"
+    rmmod regexp
+    return 2
+  fi
+  rmmod regexp
+  eval 'test -n "$'"$1"'"'
+}
+
+
+function rgx_or {
+  # args: dest_var match_group regexp input default
+  if ! rgx_ne "$@"; then set "$1=$5"; fi
+}
+
+
+function set_if_empty {
+  if eval 'test -n "$'"$1"'"'; then return 0; fi
+  set "$1=$2"
+}
+
+
+function exset_if_empty {
+  if eval 'test -n "$'"$1"'"'; then return 0; fi
+  set "$1=$2"
+  export "$1"
+}
+
+
+function prtn_by_label {
+  if keystatus --shift; then
+    echo "W: skipping prtn_by_label b/c shift is held: $*"
+    return 2
+  fi
+  if eval 'test -n "$'"$1"'"'; then return 0; fi
+  search --set="$1" --no-floppy --label "$2"
+}
+
+
+function label_by_prtn {
+  if keystatus --shift; then
+    echo "W: skipping label_by_prtn b/c shift is held: $*"
+    return 2
+  fi
+  probe --set "$1" --label "$2"
+}
+
+
+function repeatable_menuentry {
+  # args: 1=extra_args_str 2=boot_cmd_str
+  echo D: "repeatable_menuentry: '$ment_title' [$ment_id]"
+  if [ "$ment_id" == "$prevboot" ]; then
+    set ment_title="$ment_title (chosen previously)"
+    set timeout=30
+    if [ "$again_timeout" -ge 1 ]; then set timeout="$again_timeout"; fi
+  fi
+  if [ -z "$ment_add" ]; then set ment_add='menuentry'; fi
+  if [ -n "$ment_hotkey" ]; then
+    set ment_title="$ment_title [$ment_hotkey]"
+    set ment_hotkey=" --hotkey=$ment_hotkey"
+  fi
+  eval "$ment_add \"$ment_title\" --id='$ment_id'$ment_hotkey $1 {
+    permaset prevboot '$ment_id'
+    # ^-- using literal value because \$chosen is empty when editing manually.
+    $2
+  }"
+  unset ment_hotkey
+}
+
+
+function repeatable_menuentry_configfile {
+  set ment_id="$1"
+  set ment_title="$2"
+  if [ -z "$ment_title" ]; then ment_title="$ment_id"; fi
+  repeatable_menuentry "" "configfile '$prefix/$ment_id.grub'"
+}
+
+
+function vtry {
+  "$@"
+  set vtry_rv="$?"
+  if [ "$vtry_rv" == 0 ]; then return 0; fi
+  if [ "$1" == initrd ]; then setparams "$1"; fi
+  if [ "$1" == kernel ]; then setparams "$1"; fi
+  echo E: "command failed (rv=$vtry_rv): $*$vtry_hint"
+  wait +
+  return "$vtry_rv"
+}
+
+
+function ment_noop { menuentry "$@" { return 0; }; }
+
+function ment_cfg_ifexist {
+  if ! [ -f "$2" ]; then return 2; fi
+  menuentry "$@" { configfile "$2"; }
+}
+
+
+function videoset {
+  set gfxmode="$1"
+  export gfxmode
+  terminal_output console
+  if [ -n "$gfxmode" ]; then terminal_output gfxterm; fi
+}
+
+
+function headline_cmd {
+  echo
+  echo "==== $1 ===="
+  shift
+  if [ -z "$1" ]; then return 0; fi
+  "$@"
+}
 
 
 

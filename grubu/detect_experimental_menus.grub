@@ -1,0 +1,42 @@
+# -*- coding: utf-8, tab-width: 2 -*-
+
+ment_noop "==---== Experimental Features ==---=="
+
+insmod regexp
+set all_experimental_feature_configs=
+for item in "$prefix/"experi.*.grub; do
+  # While module regexp is active, do nothing but collect!
+  set all_experimental_feature_configs="$all_experimental_feature_configs $item"
+done
+rmmod regexp
+
+for item in $all_experimental_feature_configs; do
+  if rgx_ne item 1 '/experi\.([^/]+)\.grub' "$item"; then
+    repeatable_menuentry_configfile "experi.$item" "$item"
+  fi
+done
+
+unset all_experimental_feature_configs
+unset item
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ment_noop ''

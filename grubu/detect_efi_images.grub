@@ -1,0 +1,111 @@
+# -*- coding: utf-8, tab-width: 2 -*-
+
+
+menuentry "==---== Auto-detected EFI images ==---==" {
+  set esp_prtn=
+  set ment_add='echo M:'
+  detect_efi_images__scan detect_efi_images__make_menu
+  wait +
+}
+
+
+function detect_efi_images__scan {
+  echo
+  echo "Detect EFI images on host $hostname: "
+  if [ -z "$hostname" ]; then
+    echo E: 'Empty hostname!'
+    echo -n 'Enter temporary hostname?: '
+    read hostname; echo
+    if [ -z "$hostname" ]; then return 2; fi
+  fi
+  tr --set=UC_HOST --upcase "$hostname"
+  set esp_label="$esp_prtn_label"
+  set_if_empty esp_label "${UC_HOST}_ESP"
+  echo -n D: "Search for partition '$esp_label': "
+  prtn_by_label esp_prtn "$esp_label"
+  set_if_empty esp_prtn 'error/cannot/find/ESP'
+  echo "$esp_prtn"
+
+  set all_imgs=
+  detect_efi_images__scan_one_basedir "$esp_prtn" "$esp_label"
+  if [ "$esp_prtn" != "$root" ]; then
+    detect_efi_images__scan_one_basedir "$root" "$root_label"
+  fi
+
+  for efi_img in $all_imgs ; do
+    if ! [ -f "$efi_img" ]; then
+      # echo D: "not a regular file: '$efi_img'"
+      continue
+    fi
+    # echo D: "Found EFI image:    '$efi_img'"
+    "$@"
+  done
+
+  unset all_imgs
+  unset $esp_label
+}
+
+
+function detect_efi_images__make_menu {
+  set ment_vari=
+  detect_efi_images__add_ment
+  unset ment_vari
+}
+
+
+function detect_efi_images__add_ment {
+  set ment_id="autodetected-efi-image:$efi_img@${hostname}"
+  rgx_or ment_title 1 '^\([a-z0-9,]*\)\/(.*)$' "$efi_img" "(regexp fail?) $efi_img"
+  set ment_title="  $ment_title"
+  if [ -n "$ment_vari" ]; then
+    set ment_id="$ment_id:$ment_vari"
+    set ment_title="   `-- $ment_vari"
+  fi
+  repeatable_menuentry "" "
+    $1
+    echo 'Now booting: $efi_img'
+    chainloader '$efi_img'
+    boot
+    "
+}
+
+
+function detect_efi_images__scan_one_basedir {
+  ment_noop "found on $1 ($2):"
+  insmod regexp
+  for efi_img in EFI efi; do
+    set efi_img="($1)/$efi_img"
+    for efi_img in \
+      "$efi_img"/* \
+      "$efi_img"/*/* \
+      "$efi_img"/*/*/* \
+      "$efi_img"/*/*/*/* \
+      "$efi_img"/*/*/*/*/* \
+    ; do
+      # While module regexp is active, do nothing but collect!
+      for efi_img in "$efi_img"/*.efi "$efi_img"/*.EFI; do
+        set all_imgs="$all_imgs $efi_img"
+      done
+    done
+  done
+  rmmod regexp
+  unset efi_img
+}
+
+
+set ment_add='menuentry'
+detect_efi_images__scan detect_efi_images__make_menu
+
+
+
+
+
+
+
+
+
+unset ment_title
+unset esp_prtn
+unset ment_add
+unset ment_id
+ment_noop ''

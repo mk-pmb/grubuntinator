@@ -1,0 +1,25 @@
+# -*- coding: utf-8, tab-width: 2 -*-
+
+exset_if_empty liveiso_prtn "${hostname}_public"
+#exset_if_empty liveiso_kopt 'persistent'
+
+exset_if_empty liveiso_kbd  'de'
+exset_if_empty liveiso_lang 'en_US'
+
+#exset_if_empty liveiso_ip ',192.168.42.100,255.255.0.0,192.168.42.1'
+# ^-- ip=IFACE,ADDRESS,NETMASK,GATEWAY based on
+#     https://manpages.ubuntu.com/manpages/noble/man7/casper.7.html
+# Warning: This blocks the initrd premound script until network is up!
+
+# exset_if_empty non_efi_windows_fslabel "${hostname}_win_ssd"
+
+
+
+
+
+
+
+
+
+
+# np2

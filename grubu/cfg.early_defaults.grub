@@ -1,0 +1,43 @@
+# -*- coding: utf-8, tab-width: 2 -*-
+
+accum irdex_extra_disks
+  # accum ",L:wood_crate"
+accum =
+
+accum kernel_opt_default
+  # accum 'console=tty1'
+  # accum ' console=ttyUSB0,115200n8'
+  accum " systemd.debug_shell"
+accum =
+
+
+function determine_kernel_opt {
+  if [ -z "$scan_host" ]; then
+    set scan_host="$hostname"
+  fi
+
+  accum irdex_disks
+    accum "WAIT:"
+    if [ "$scan_host" != "$hostname" ]; then
+      accum "L:${UC_BOOT_HOST}_ESP,"
+    fi
+    accum "ESP:"
+    accum "$irdex_extra_disks"
+  accum =
+
+  accum kernel_opt
+    accum "irdex_host=${scan_host}"
+    accum " irdex_disks=$irdex_disks"
+    accum " $kernel_opt_default"
+  accum =
+}
+
+
+
+
+
+
+
+
+
+# np2
